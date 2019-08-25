@@ -1,0 +1,46 @@
+#买入市盈率大于50的，小于65的，营业总收入前10的股票
+
+def init(context):
+    
+    #定义一个选股的范围
+    context.hs300 = index_components('000300.XSHG')
+    
+    # 实时打印日志
+    logger.info("RunInfo: {}".format(context.run_info))
+    scheduler.run_monthly(get_data,tradingday=2)
+
+# before_trading此函数会在每天策略交易开始前被调用，当天只会被调用一次
+def before_trading(context):
+    q = query(fundamentals.eod_derivative_indicator.pe_ratio,
+        fundamentals.income_statement.revenue).order_by(
+                    fundamentals.income_statement.revenue.desc()
+                    ).filter(
+                        fundamentals.stockcode.in_(context.hs300)
+                        ).limit(10)
+                    
+    fund = get_fundamentals(q)
+    
+    context.stock_list = fund.T.index
+    print()
+
+
+
+# 你选择的证券的数据更新将会触发此段逻辑，例如日或分钟历史数据切片或者是实时数据切片更新
+def get_data(context, bar_dict):
+    #先判断仓位是否有股票，如果不在新的股票池中，则卖出
+    if(len(context.portfolio.positions.keys()) !=0):
+        for stock in context.portfolio.positions.keys():
+            #如果旧的持有的股票不在新的股票池当中，卖出
+            if stock not in context.stock_list:
+                order_target_value(stock,0)
+    
+    #买入最新的股票池,等比例买入10%
+    for stock in context.stock_list:
+        order_target_percent(stock,0.1)
+        
+        
+    print('------------------------------------------------------------------')
+
+# after_trading函数会在每天交易结束后被调用，当天只会被调用一次
+def after_trading(context):
+    pass
